@@ -1,0 +1,34 @@
+name: Build NASTV Tar Package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-tar:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(cat VERSION)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build tar package
+        run: |
+          mkdir -p dist
+          tar --exclude='.git' \
+              --exclude='dist' \
+              -czf dist/nastv-${{ steps.version.outputs.version }}.tar.gz .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nastv-tar
+          path: dist/*.tar.gz
