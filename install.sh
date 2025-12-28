@@ -3,15 +3,15 @@ set -e
 
 APP_NAME="nastv"
 DEFAULT_PORT=19841
+IMAGE_NAME="nastv"
 
 echo "======================================"
-echo "   NASTV 一键安装程序"
+echo "   NASTV 一键安装（离线镜像版）"
 echo "======================================"
 
 # -----------------------------
 # Docker 检查
 # -----------------------------
-
 if ! command -v docker >/dev/null 2>&1; then
   echo "❌ 未检测到 Docker，请先安装 Docker"
   exit 1
@@ -29,11 +29,8 @@ fi
 # -----------------------------
 # .env 初始化
 # -----------------------------
-
 if [ ! -f .env ]; then
-  echo ""
   echo "▶ 首次安装，初始化配置"
-
   cp .env.example .env
 
   read -p "设置 UP_PASSWORD（管理密码）: " UP_PASSWORD
@@ -53,18 +50,27 @@ else
 fi
 
 # -----------------------------
-# 运行目录（仅创建，不初始化数据库）
+# 运行目录
 # -----------------------------
-
 echo "▶ 创建运行目录"
 mkdir -p data logs web/admin
 
 # -----------------------------
-# 启动容器
+# 镜像检查
 # -----------------------------
+echo "▶ 检查本地 Docker 镜像"
+if ! docker image inspect ${IMAGE_NAME} >/dev/null 2>&1; then
+  echo "❌ 未检测到 Docker 镜像 ${IMAGE_NAME}"
+  echo "请先执行："
+  echo "  docker load < nastv-image-*.tar"
+  exit 1
+fi
 
-echo "▶ 构建并启动 Docker 容器"
-$COMPOSE up -d --build
+# -----------------------------
+# 启动容器（不 build）
+# -----------------------------
+echo "▶ 启动 Docker 容器"
+$COMPOSE up -d
 
 echo ""
 echo "======================================"
