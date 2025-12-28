@@ -1,18 +1,38 @@
-FROM python:3.12-slim
+FROM python:3.11-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
+# ---------- 系统依赖 ----------
 RUN apt-get update && apt-get install -y \
-    wget curl gnupg ca-certificates \
-    libnss3 libx11-xcb1 libxcomposite1 libxdamage1 \
-    libxrandr2 libgtk-3-0 libasound2 \
+    nginx \
+    supervisor \
+    php-fpm \
+    php-sqlite3 \
+    php-zip \
+    php-cli \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# ---------- Python 依赖 ----------
+COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
-RUN playwright install chromium --with-deps
 
-COPY app.py .
-RUN mkdir -p /app/data
+# ---------- 项目文件 ----------
+COPY app.py /app/app.py
+COPY scheduler.py /app/scheduler.py
+COPY web /app/web
+COPY data /app/data
+COPY logs /app/logs
 
+# ---------- 配置文件 ----------
+COPY nginx.conf /etc/nginx/nginx.conf
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# ---------- 权限 ----------
+RUN chown -R www-data:www-data /app/web /app/logs /app/data
+
+# ---------- 端口 ----------
 EXPOSE 19841
-CMD ["python", "app.py"]
+
+# ---------- 启动 ----------
+CMD ["/usr/bin/supervisord", "-n"]
