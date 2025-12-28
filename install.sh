@@ -9,7 +9,7 @@ echo "   NASTV 一键安装程序"
 echo "======================================"
 
 # -----------------------------
-# 基础检查
+# Docker 检查
 # -----------------------------
 
 if ! command -v docker >/dev/null 2>&1; then
@@ -53,38 +53,14 @@ else
 fi
 
 # -----------------------------
-# 运行态目录
+# 运行目录（仅创建，不初始化数据库）
 # -----------------------------
 
 echo "▶ 创建运行目录"
 mkdir -p data logs web/admin
 
 # -----------------------------
-# 数据库初始化
-# -----------------------------
-
-if [ ! -f data/stream_cache.db ]; then
-  echo "▶ 初始化 SQLite 数据库"
-  sqlite3 data/stream_cache.db <<'EOF'
-CREATE TABLE IF NOT EXISTS channels (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  url TEXT NOT NULL,
-  enabled INTEGER DEFAULT 1,
-  refresh_enabled INTEGER DEFAULT 1,
-  refresh_times TEXT,
-  refresh_interval_hours INTEGER,
-  manual_refresh_at TEXT,
-  last_open_at TEXT,
-  last_refresh_at TEXT
-);
-EOF
-  echo "✔ 数据库初始化完成"
-else
-  echo "✔ 数据库已存在，跳过初始化"
-fi
-
-# -----------------------------
-# 启动服务
+# 启动容器
 # -----------------------------
 
 echo "▶ 构建并启动 Docker 容器"
@@ -95,5 +71,4 @@ echo "======================================"
 echo "✅ NASTV 安装完成"
 echo "--------------------------------------"
 echo "访问地址： http://服务器IP:${APP_PORT}/up.php"
-echo "管理入口： up.php"
 echo "======================================"
