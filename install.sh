@@ -1,17 +1,13 @@
 #!/usr/bin/env bash
 set -e
 
-APP_NAME="nastv"
 DEFAULT_PORT=19841
 IMAGE_NAME="nastv"
 
 echo "======================================"
-echo "   NASTV 一键安装（离线镜像版）"
+echo "   NASTV 一键安装（离线镜像版 / Playwright）"
 echo "======================================"
 
-# -----------------------------
-# Docker 检查
-# -----------------------------
 if ! command -v docker >/dev/null 2>&1; then
   echo "❌ 未检测到 Docker，请先安装 Docker"
   exit 1
@@ -26,9 +22,9 @@ else
   exit 1
 fi
 
-# -----------------------------
-# .env 初始化
-# -----------------------------
+# 读取版本（用于提示）
+VERSION="$(cat VERSION 2>/dev/null || echo "unknown")"
+
 if [ ! -f .env ]; then
   echo "▶ 首次安装，初始化配置"
   cp .env.example .env
@@ -49,32 +45,22 @@ else
   echo "✔ 检测到 .env，跳过初始化"
 fi
 
-# -----------------------------
-# 运行目录
-# -----------------------------
 echo "▶ 创建运行目录"
 mkdir -p data logs web/admin
 
-# -----------------------------
-# 镜像检查
-# -----------------------------
-echo "▶ 检查本地 Docker 镜像"
-if ! docker image inspect ${IMAGE_NAME} >/dev/null 2>&1; then
-  echo "❌ 未检测到 Docker 镜像 ${IMAGE_NAME}"
+echo "▶ 检查本地 Docker 镜像（需要先 docker load 离线镜像）"
+if ! docker image inspect "${IMAGE_NAME}:${VERSION}" >/dev/null 2>&1; then
+  echo "❌ 未检测到镜像 ${IMAGE_NAME}:${VERSION}"
   echo "请先执行："
-  echo "  docker load < nastv-image-*.tar"
+  echo "  docker load < nastv-image-${VERSION}.tar"
   exit 1
 fi
 
-# -----------------------------
-# 启动容器（不 build）
-# -----------------------------
-echo "▶ 启动 Docker 容器"
+echo "▶ 启动 Docker 容器（不 build）"
 $COMPOSE up -d
 
 echo ""
 echo "======================================"
-echo "✅ NASTV 安装完成"
-echo "--------------------------------------"
-echo "访问地址： http://服务器IP:${APP_PORT}/up.php"
+echo "✅ NASTV 安装完成（版本：${VERSION}）"
+echo "访问地址： http://服务器IP:$(grep '^APP_PORT=' .env | cut -d= -f2)/up.php"
 echo "======================================"
