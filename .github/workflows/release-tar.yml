@@ -13,22 +13,24 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          path: nastv
 
       - name: Read version
         id: version
         run: |
-          VERSION=$(cat VERSION)
+          VERSION=$(cat nastv/VERSION)
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Build tar package
+      - name: Build tar package (with root folder)
         run: |
           mkdir -p dist
-          tar --exclude='.git' \
+          tar --exclude='nastv/.git' \
               --exclude='dist' \
-              -czf dist/nastv-${{ steps.version.outputs.version }}.tar.gz .
+              -czf dist/nastv-${{ steps.version.outputs.version }}.tar.gz nastv
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: nastv-tar
-          path: dist/*.tar.gz
+          path: dist/nastv-*.tar.gz
