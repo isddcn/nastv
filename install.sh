@@ -2,45 +2,69 @@
 set -e
 
 APP_NAME="nastv"
-APP_PORT_DEFAULT=19841
+DEFAULT_PORT=19841
 
-echo "== NASTV 安装程序 =="
+echo "======================================"
+echo "   NASTV 一键安装程序"
+echo "======================================"
 
-# ---------- Docker ----------
+# -----------------------------
+# 基础检查
+# -----------------------------
+
 if ! command -v docker >/dev/null 2>&1; then
   echo "❌ 未检测到 Docker，请先安装 Docker"
   exit 1
 fi
 
-# ---------- Compose ----------
 if command -v docker-compose >/dev/null 2>&1; then
   COMPOSE="docker-compose"
 elif docker compose version >/dev/null 2>&1; then
   COMPOSE="docker compose"
 else
-  echo "❌ 未检测到 docker-compose"
+  echo "❌ 未检测到 docker compose / docker-compose"
   exit 1
 fi
 
-# ---------- .env ----------
+# -----------------------------
+# .env 初始化
+# -----------------------------
+
 if [ ! -f .env ]; then
-  echo "首次安装，创建 .env"
+  echo ""
+  echo "▶ 首次安装，初始化配置"
+
   cp .env.example .env
 
-  read -p "设置 UP_PASSWORD: " UP_PWD
-  read -p "设置对外端口 [${APP_PORT_DEFAULT}]: " APP_PORT
-  APP_PORT=${APP_PORT:-$APP_PORT_DEFAULT}
+  read -p "设置 UP_PASSWORD（管理密码）: " UP_PASSWORD
+  while [ -z "$UP_PASSWORD" ]; do
+    read -p "UP_PASSWORD 不能为空，请重新输入: " UP_PASSWORD
+  done
 
-  sed -i "s/^UP_PASSWORD=.*/UP_PASSWORD=${UP_PWD}/" .env
+  read -p "设置对外端口 [默认 ${DEFAULT_PORT}]: " APP_PORT
+  APP_PORT=${APP_PORT:-$DEFAULT_PORT}
+
+  sed -i "s/^UP_PASSWORD=.*/UP_PASSWORD=${UP_PASSWORD}/" .env
   sed -i "s/^APP_PORT=.*/APP_PORT=${APP_PORT}/" .env
+
+  echo "✔ 已生成 .env"
+else
+  echo "✔ 检测到 .env，跳过初始化"
 fi
 
-# ---------- Dirs ----------
+# -----------------------------
+# 运行态目录
+# -----------------------------
+
+echo "▶ 创建运行目录"
 mkdir -p data logs web/admin
 
-# ---------- DB ----------
+# -----------------------------
+# 数据库初始化
+# -----------------------------
+
 if [ ! -f data/stream_cache.db ]; then
-  echo "初始化数据库"
+  echo "▶ 初始化 SQLite 数据库"
   sqlite3 data/stream_cache.db <<'EOF'
 CREATE TABLE IF NOT EXISTS channels (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,10 +78,22 @@ CREATE TABLE IF NOT EXISTS channels (
   last_refresh_at TEXT
 );
 EOF
+  echo "✔ 数据库初始化完成"
+else
+  echo "✔ 数据库已存在，跳过初始化"
 fi
 
-# ---------- Start ----------
-echo "启动服务..."
+# -----------------------------
+# 启动服务
+# -----------------------------
+
+echo "▶ 构建并启动 Docker 容器"
 $COMPOSE up -d --build
 
-echo "✅ 安装完成"
+echo ""
+echo "======================================"
+echo "✅ NASTV 安装完成"
+echo "--------------------------------------"
+echo "访问地址： http://服务器IP:${APP_PORT}/up.php"
+echo "管理入口： up.php"
+echo "======================================"
