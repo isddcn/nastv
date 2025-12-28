@@ -1,0 +1,12 @@
+version: "3.9"
+services:
+  nastv:
+    build: .
+    container_name: nastv
+    env_file:
+      - .env
+    ports:
+      - "${APP_PORT}:${APP_PORT}"
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
