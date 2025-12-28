@@ -1,4 +1,4 @@
-name: Build NASTV Offline Docker Image
+name: Build NASTV Offline Docker Image (Playwright)
 
 on:
   workflow_dispatch:
