@@ -1,7 +1,8 @@
 version: "3.9"
+
 services:
   nastv:
-    build: .
+    image: nastv:1.0.0
     container_name: nastv
     env_file:
       - .env
@@ -9,4 +10,5 @@ services:
       - "${APP_PORT}:${APP_PORT}"
     volumes:
       - ./data:/app/data
+      - ./logs:/app/logs
     restart: unless-stopped
