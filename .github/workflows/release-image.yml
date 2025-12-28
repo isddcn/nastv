@@ -1,0 +1,40 @@
+name: Build NASTV Offline Docker Image
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          path: nastv
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(cat nastv/VERSION)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build Docker image
+        run: |
+          cd nastv
+          docker build -t nastv:${{ steps.version.outputs.version }} .
+
+      - name: Save Docker image to tar
+        run: |
+          mkdir -p dist
+          docker save nastv:${{ steps.version.outputs.version }} \
+            -o dist/nastv-image-${{ steps.version.outputs.version }}.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nastv-image
+          path: dist/nastv-image-*.tar
