@@ -173,7 +173,7 @@ background:rgba(0,0,0,.6);color:#fff;padding:10px;
 font-size:13px;border-radius:8px;max-width:92%;
 word-break:break-all;line-height:1.4}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<script src="/static/hls.min.js"></script>
 </head>
 <body>
 <video id="v" autoplay muted playsinline controls></video>
