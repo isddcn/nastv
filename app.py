@@ -1,17 +1,19 @@
 import os
+import re
 import time
 import sqlite3
 from datetime import datetime
+from urllib.parse import urljoin
+
+import requests
 from flask import Flask, request, Response
-from playwright.sync_api import sync_playwright
 
 # ================== 配置 ==================
 APP_PORT = int(os.getenv("APP_PORT", "19841"))
 DB_FILE = os.getenv("DB_FILE", "/app/data/stream_cache.db")
-CACHE_TTL = int(os.getenv("CACHE_TTL", str(6 * 60 * 60)))  # 6 小时
-PARSE_TIMEOUT = int(os.getenv("PARSE_TIMEOUT", "25"))     # 抓流最长等待秒
-
-STREAM_HINTS = (".m3u8", ".flv", ".mp4", ".mpd", ".webm")
+CACHE_TTL = int(os.getenv("CACHE_TTL", str(6 * 60 * 60)))  # 默认 6 小时
+MAX_IFRAME_DEPTH = int(os.getenv("MAX_IFRAME_DEPTH", "2"))
+REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "12"))
 
 app = Flask(__name__)
 
@@ -56,58 +58,73 @@ def db_set(page_url, stream_url):
     conn.close()
     return now
 
-# ================== Playwright 抓流 ==================
-def parse_stream(page_url):
-    with sync_playwright() as p:
-        browser = p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-blink-features=AutomationControlled",
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-            ]
+# ================== 解析核心（轻量版） ==================
+
+STREAM_REGEXES = [
+    re.compile(r'https?://[^\s\'"<>]+\.m3u8(?:\?[^\s\'"<>]+)?', re.I),
+    re.compile(r'https?://[^\s\'"<>]+\.mpd(?:\?[^\s\'"<>]+)?', re.I),
+    re.compile(r'https?://[^\s\'"<>]+\.flv(?:\?[^\s\'"<>]+)?', re.I),
+    re.compile(r'https?://[^\s\'"<>]+\.mp4(?:\?[^\s\'"<>]+)?', re.I),
+]
+
+IFRAME_RE = re.compile(r'<iframe[^>]+src=["\']([^"\']+)["\']', re.I)
+
+def _headers(referer):
+    return {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "*/*",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+        "Referer": referer,
+        "Connection": "close",
+    }
+
+def _find_stream(text):
+    for rgx in STREAM_REGEXES:
+        m = rgx.search(text)
+        if m:
+            return m.group(0)
+    return None
+
+def parse_stream(page_url, depth=0):
+    """
+    解析策略（无 Playwright）：
+    1. 请求页面 HTML，正则找流
+    2. 查找 iframe，递归进入（有限深度）
+    """
+    if depth > MAX_IFRAME_DEPTH:
+        return None
+
+    try:
+        r = requests.get(
+            page_url,
+            headers=_headers(page_url),
+            timeout=REQUEST_TIMEOUT,
+            allow_redirects=True
         )
+    except Exception:
+        return None
 
-        context = browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            ),
-            viewport={"width": 1280, "height": 720},
-        )
+    if not r.ok or not r.text:
+        return None
 
-        page = context.new_page()
-        stream_url = None
+    # ① 直接找流
+    stream = _find_stream(r.text)
+    if stream:
+        return stream
 
-        def hit(url: str):
-            nonlocal stream_url
-            if stream_url:
-                return
-            u = url.lower()
-            if any(x in u for x in STREAM_HINTS):
-                stream_url = url
+    # ② iframe 递归
+    iframes = IFRAME_RE.findall(r.text)
+    for src in iframes:
+        iframe_url = urljoin(page_url, src)
+        stream = parse_stream(iframe_url, depth + 1)
+        if stream:
+            return stream
 
-        # 同时监听 request + response（非常关键）
-        page.on("request", lambda req: hit(req.url))
-        page.on("response", lambda resp: hit(resp.url))
-
-        try:
-            page.goto(page_url, wait_until="domcontentloaded", timeout=30000)
-            # 等待网络空闲（播放器通常在这之后开始拉流）
-            page.wait_for_load_state("networkidle", timeout=15000)
-        except Exception:
-            pass
-
-        start = time.time()
-        while time.time() - start < PARSE_TIMEOUT:
-            if stream_url:
-                break
-            time.sleep(0.4)
-
-        context.close()
-        browser.close()
-        return stream_url
+    return None
 
 # ================== 路由 ==================
 @app.route("/parse")
@@ -173,7 +190,7 @@ else if(window.Hls && Hls.isSupported()){{const h=new Hls();h.loadSource("{strea
 </script>
 </body></html>""", mimetype="text/html")
 
-    # ===== 默认：只输出流地址（你要求的行为）=====
+    # ===== 默认：纯文本 =====
     return Response(stream, mimetype="text/plain")
 
 @app.route("/health")
